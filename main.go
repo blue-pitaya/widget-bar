@@ -104,6 +104,22 @@ func printRamUsage() string {
 	return result
 }
 
+// date "+%Y-%m-%d %H:%M"
+func prinTimeAndDate() string {
+	cmd := exec.Command("bash", "-c", "date '+%H:%M %d.%m.%Y'")
+	output, err := cmd.CombinedOutput()
+
+	var result string
+
+	if err != nil {
+		result = "?"
+	}
+
+	result = strings.TrimSpace(string(output))
+
+	return result
+}
+
 func main() {
 	var ethInterface *string = flag.String("i", "eth1", "network interface to use")
 	flag.Parse()
@@ -115,6 +131,7 @@ func main() {
 			printNetworkTraffic(*ethInterface, &lastRx, &lastTx),
 			printSoundVolume(),
 			printRamUsage(),
+			prinTimeAndDate(),
 		}
 		output := strings.Join(parts[:], "  ")
 
