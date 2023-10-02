@@ -28,6 +28,7 @@ func getBytes(last *int, filename string) int {
 	return diff
 }
 
+// this should work like: numfmt --to=iec $n
 func parseBytes(n int) string {
 	const desiredLength int = 5
 	endings := [...]string{"B", "KB", "MB", "GB"}
@@ -61,6 +62,17 @@ func parseBytes(n int) string {
 	return strings.Repeat(" ", spacesInFront) + result
 }
 
+// 🔻 1.1KB 🔺  439B
+func printNetworkTraffic(ethInterface string, lastRx *int, lastTx *int) string {
+	var rxBytesFilename string = fmt.Sprintf("/sys/class/net/%s/statistics/rx_bytes", ethInterface)
+	var txBytesFilename string = fmt.Sprintf("/sys/class/net/%s/statistics/tx_bytes", ethInterface)
+
+	diffRx := getBytes(lastRx, rxBytesFilename)
+	diffTx := getBytes(lastTx, txBytesFilename)
+
+	return fmt.Sprintf("|🔻 %s 🔺 %s|", parseBytes(diffRx), parseBytes(diffTx))
+}
+
 //  10%
 func printSoundVolume() string {
 	cmd := exec.Command("bash", "-c", "amixer get Master | sed '$!d' | grep -E -o '[0-9]+%'")
@@ -71,20 +83,25 @@ func printSoundVolume() string {
 	if err != nil {
 		result = "?"
 	}
+
 	result = strings.TrimSpace(string(output))
 
 	return fmt.Sprintf(" %s", result)
 }
 
-// 🔻 1.1KB 🔺  439B
-func printNetworkTraffic(ethInterface string, lastRx *int, lastTx *int) string {
-	var rxBytesFilename string = fmt.Sprintf("/sys/class/net/%s/statistics/rx_bytes", ethInterface)
-	var txBytesFilename string = fmt.Sprintf("/sys/class/net/%s/statistics/tx_bytes", ethInterface)
+func printRamUsage() string {
+	cmd := exec.Command("bash", "-c", "free -h | awk '/^Mem/ { print $3\"/\"$2 }' | sed s/i//g")
+	output, err := cmd.CombinedOutput()
 
-	diffRx := getBytes(lastRx, rxBytesFilename)
-	diffTx := getBytes(lastTx, txBytesFilename)
+	var result string
 
-	return fmt.Sprintf("|🔻 %s 🔺 %s|", parseBytes(diffRx), parseBytes(diffTx))
+	if err != nil {
+		result = "?"
+	}
+
+	result = strings.TrimSpace(string(output))
+
+	return result
 }
 
 func main() {
@@ -97,6 +114,7 @@ func main() {
 		parts := [...]string{
 			printNetworkTraffic(*ethInterface, &lastRx, &lastTx),
 			printSoundVolume(),
+			printRamUsage(),
 		}
 		output := strings.Join(parts[:], "  ")
 
