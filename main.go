@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -60,19 +61,47 @@ func parseBytes(n int) string {
 	return strings.Repeat(" ", spacesInFront) + result
 }
 
+//  10%
+func printSoundVolume() string {
+	cmd := exec.Command("bash", "-c", "amixer get Master | sed '$!d' | grep -E -o '[0-9]+%'")
+	output, err := cmd.CombinedOutput()
+
+	var result string
+
+	if err != nil {
+		result = "?"
+	}
+	result = strings.TrimSpace(string(output))
+
+	return fmt.Sprintf(" %s", result)
+}
+
+// 🔻 1.1KB 🔺  439B
+func printNetworkTraffic(ethInterface string, lastRx *int, lastTx *int) string {
+	var rxBytesFilename string = fmt.Sprintf("/sys/class/net/%s/statistics/rx_bytes", ethInterface)
+	var txBytesFilename string = fmt.Sprintf("/sys/class/net/%s/statistics/tx_bytes", ethInterface)
+
+	diffRx := getBytes(lastRx, rxBytesFilename)
+	diffTx := getBytes(lastTx, txBytesFilename)
+
+	return fmt.Sprintf("|🔻 %s 🔺 %s|", parseBytes(diffRx), parseBytes(diffTx))
+}
+
 func main() {
 	var ethInterface *string = flag.String("i", "eth1", "network interface to use")
 	flag.Parse()
 
-	var rxBytesFilename string = fmt.Sprintf("/sys/class/net/%s/statistics/rx_bytes", *ethInterface)
-	var txBytesFilename string = fmt.Sprintf("/sys/class/net/%s/statistics/tx_bytes", *ethInterface)
-
 	var lastRx, lastTx int
-	for {
-		diffRx := getBytes(&lastRx, rxBytesFilename)
-		diffTx := getBytes(&lastTx, txBytesFilename)
 
-		fmt.Println(fmt.Sprintf("🔻 %s 🔺 %s", parseBytes(diffRx), parseBytes(diffTx)))
+	for {
+		parts := [...]string{
+			printNetworkTraffic(*ethInterface, &lastRx, &lastTx),
+			printSoundVolume(),
+		}
+		output := strings.Join(parts[:], "  ")
+
+		fmt.Println(output)
+
 		time.Sleep(1 * time.Second)
 	}
 }
