@@ -73,51 +73,38 @@ func printNetworkTraffic(ethInterface string, lastRx *int, lastTx *int) string {
 	return fmt.Sprintf("|🔻 %s 🔺 %s|", parseBytes(diffRx), parseBytes(diffTx))
 }
 
-//  10%
-func printSoundVolume() string {
-	cmd := exec.Command("bash", "-c", "amixer get Master | sed '$!d' | grep -E -o '[0-9]+%'")
-	output, err := cmd.CombinedOutput()
-
-	var result string
-
+func cmdTrimmedOutput(cmd string) string {
+	_cmd := exec.Command("bash", "-c", cmd)
+	output, err := _cmd.CombinedOutput()
 	if err != nil {
-		result = "?"
+		return "?"
 	}
 
-	result = strings.TrimSpace(string(output))
+	return strings.TrimSpace(string(output))
+}
 
-	return fmt.Sprintf(" %s", result)
+func printHeadsetBattery() string {
+	battery := cmdTrimmedOutput("upower --dump | grep -A3 'headset' | grep 'percentage' | tr -d -c 0-9 | sed -e 's/$/%/'")
+
+	result := "-"
+	if battery != "" {
+		result = battery
+	}
+
+	return " " + result
+}
+
+//  10%
+func printSoundVolume() string {
+	return cmdTrimmedOutput("amixer get Master | sed '$!d' | grep -E -o '[0-9]+%'")
 }
 
 func printRamUsage() string {
-	cmd := exec.Command("bash", "-c", "free -h | awk '/^Mem/ { print $3\"/\"$2 }' | sed s/i//g")
-	output, err := cmd.CombinedOutput()
-
-	var result string
-
-	if err != nil {
-		result = "?"
-	}
-
-	result = strings.TrimSpace(string(output))
-
-	return result
+	return cmdTrimmedOutput("free -h | awk '/^Mem/ { print $3\"/\"$2 }' | sed s/i//g")
 }
 
-// date "+%Y-%m-%d %H:%M"
 func prinTimeAndDate() string {
-	cmd := exec.Command("bash", "-c", "date '+%H:%M %d.%m.%Y'")
-	output, err := cmd.CombinedOutput()
-
-	var result string
-
-	if err != nil {
-		result = "?"
-	}
-
-	result = strings.TrimSpace(string(output))
-
-	return result
+	return cmdTrimmedOutput("date '+%H:%M %d.%m.%Y'")
 }
 
 func main() {
@@ -129,6 +116,7 @@ func main() {
 	for {
 		parts := [...]string{
 			printNetworkTraffic(*ethInterface, &lastRx, &lastTx),
+			printHeadsetBattery(),
 			printSoundVolume(),
 			printRamUsage(),
 			prinTimeAndDate(),
