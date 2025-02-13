@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func getBytes(last *int, filename string) int {
@@ -107,24 +106,30 @@ func prinTimeAndDate() string {
 	return cmdTrimmedOutput("date '+%H:%M %d.%m.%Y'")
 }
 
+const version = "0.0.2"
+
 func main() {
 	var ethInterface *string = flag.String("i", "eth1", "network interface to use")
+
+	versionFlag := flag.Bool("v", false, "Prints the version")
+	versionFlagLong := flag.Bool("version", false, "Prints the version")
+
 	flag.Parse()
 
-	var lastRx, lastTx int
-
-	for {
-		parts := [...]string{
-			printNetworkTraffic(*ethInterface, &lastRx, &lastTx),
-			printHeadsetBattery(),
-			printSoundVolume(),
-			printRamUsage(),
-			prinTimeAndDate(),
-		}
-		output := strings.Join(parts[:], "  ")
-
-		fmt.Println(output)
-
-		time.Sleep(1 * time.Second)
+	if *versionFlag || *versionFlagLong {
+		fmt.Println(version)
+		os.Exit(0)
 	}
+
+	var lastRx, lastTx int
+	parts := [...]string{
+		printNetworkTraffic(*ethInterface, &lastRx, &lastTx),
+		printHeadsetBattery(),
+		printSoundVolume(),
+		printRamUsage(),
+		prinTimeAndDate(),
+	}
+	output := strings.Join(parts[:], "  ")
+
+	fmt.Printf("%s\n", output)
 }
