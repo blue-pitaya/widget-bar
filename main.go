@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -62,6 +64,98 @@ func parseBytes(n int) string {
 	return strings.Repeat(" ", spacesInFront) + result
 }
 
+const (
+	TimerStopped int = iota
+	TimerRunning
+	TimerPaused
+)
+
+type TimerState struct {
+	Mode      int
+	StartTime int64
+}
+
+func NewTimerState() *TimerState {
+	return &TimerState{
+		Mode:      TimerStopped,
+		StartTime: 0,
+	}
+}
+
+func saveTimerState(path string, state *TimerState) error {
+	data, err := json.MarshalIndent(*state, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(path, data, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func loadTimerState(path string) (*TimerState, error) {
+	state := NewTimerState()
+
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return state, nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return state, err
+	}
+
+	err = json.Unmarshal(data, &state)
+	if err != nil {
+		return state, err
+	}
+
+	return state, nil
+}
+
+func handleTimer(arg string) (string, error) {
+	path := "/tmp/widget-bar_timer_state"
+	state, err := loadTimerState(path)
+	if err != nil {
+		return "", err
+	}
+
+	switch arg {
+	case "start":
+		state.Mode = TimerRunning
+		state.StartTime = time.Now().Unix()
+		saveTimerState(path, state)
+		return "", nil
+	case "stop":
+		state.Mode = TimerStopped
+		saveTimerState(path, state)
+		return "", nil
+	case "get":
+		switch state.Mode {
+		case TimerStopped:
+			return "", nil
+		case TimerRunning:
+			duration := time.Since(time.Unix(state.StartTime, 0))
+			hours := int(duration.Hours())
+			minutes := int(duration.Minutes()) % 60
+			seconds := int(duration.Seconds()) % 60
+
+			res := fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
+			return res, nil
+		case TimerPaused:
+			return "", errors.New("eror")
+		default:
+			return "", errors.New("invalid timer state")
+		}
+	default:
+		return "", errors.New("invalid timer arg")
+	}
+
+}
+
 // 🔻 1.1KB 🔺  439B
 func printNetworkTraffic(ethInterface string, lastRx *int, lastTx *int) string {
 	var rxBytesFilename string = fmt.Sprintf("/sys/class/net/%s/statistics/rx_bytes", ethInterface)
@@ -107,24 +201,46 @@ func prinTimeAndDate() string {
 	return cmdTrimmedOutput("date '+%H:%M %d.%m.%Y'")
 }
 
+const version = "0.0.2"
+
 func main() {
 	var ethInterface *string = flag.String("i", "eth1", "network interface to use")
+	var timerArgCommand *string = flag.String("timer-command", "get", "argument for timer")
+	versionFlag := flag.Bool("v", false, "Prints the version")
+	versionFlagLong := flag.Bool("version", false, "Prints the version")
 	flag.Parse()
 
-	var lastRx, lastTx int
-
-	for {
-		parts := [...]string{
-			printNetworkTraffic(*ethInterface, &lastRx, &lastTx),
-			printHeadsetBattery(),
-			printSoundVolume(),
-			printRamUsage(),
-			prinTimeAndDate(),
-		}
-		output := strings.Join(parts[:], "  ")
-
-		fmt.Println(output)
-
-		time.Sleep(1 * time.Second)
+	if *versionFlag || *versionFlagLong {
+		fmt.Println(version)
+		os.Exit(0)
 	}
+
+	timerOut, err := handleTimer(*timerArgCommand)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if len(timerOut) > 0 {
+		timerOut = " " + timerOut
+	}
+
+	var lastRx, lastTx int
+	parts := [...]string{
+		timerOut,
+		printNetworkTraffic(*ethInterface, &lastRx, &lastTx),
+		printHeadsetBattery(),
+		printSoundVolume(),
+		printRamUsage(),
+		prinTimeAndDate(),
+	}
+	var nonEmptyParts []string
+	for _, part := range parts {
+		if len(part) != 0 {
+			nonEmptyParts = append(nonEmptyParts, part)
+		}
+	}
+	output := strings.Join(nonEmptyParts, "  ")
+
+	fmt.Printf("%s\n", output)
 }
