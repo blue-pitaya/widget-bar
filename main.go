@@ -143,7 +143,7 @@ func handleTimer(arg string) (string, error) {
 			minutes := int(duration.Minutes()) % 60
 			seconds := int(duration.Seconds()) % 60
 
-			res := fmt.Sprintf("\r%02d:%02d:%02d", hours, minutes, seconds)
+			res := fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
 			return res, nil
 		case TimerPaused:
 			return "", errors.New("eror")
@@ -206,20 +206,23 @@ const version = "0.0.2"
 func main() {
 	var ethInterface *string = flag.String("i", "eth1", "network interface to use")
 	var timerArgCommand *string = flag.String("timer-command", "get", "argument for timer")
-	flag.Parse()
-
-	timerOut, err := handleTimer(*timerArgCommand)
-	if err != nil {
-		fmt.Println(err)
-		panic(err)
-	}
-
 	versionFlag := flag.Bool("v", false, "Prints the version")
 	versionFlagLong := flag.Bool("version", false, "Prints the version")
+	flag.Parse()
 
 	if *versionFlag || *versionFlagLong {
 		fmt.Println(version)
 		os.Exit(0)
+	}
+
+	timerOut, err := handleTimer(*timerArgCommand)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if len(timerOut) > 0 {
+		timerOut = " " + timerOut
 	}
 
 	var lastRx, lastTx int
@@ -236,7 +239,6 @@ func main() {
 		if len(part) != 0 {
 			nonEmptyParts = append(nonEmptyParts, part)
 		}
-
 	}
 	output := strings.Join(nonEmptyParts, "  ")
 
